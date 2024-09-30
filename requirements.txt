@@ -1,0 +1,6 @@
+scikit-learn
+langchain_community
+numpy
+faiss-cpu
+PyPDF2
+PyCryptodome
