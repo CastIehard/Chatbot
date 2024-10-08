@@ -15,12 +15,12 @@ import re
 
 # Configuration
 REWRITE_RAG_QUERIES = False
-ENABLE_RAG = True
+ENABLE_RAG = False
 RAG_THRESH = 0.2
 RAG_N_RETURN = 1
-LLM_NAME = "models\\llama-3-sauerkrautlm-8b-instruct-q4_k_m.gguf"
+LLM_NAME = "models\\qwen2-1_5b-instruct-q4_k_m.gguf"
 LLM_PORT = 1112
-EMBEDDING_NAME = "models\\gte-large.Q8_0.gguf"
+EMBEDDING_NAME = "models\\qwen2-1_5b-instruct-q4_k_m.gguf"
 EMBEDDING_PORT = 1111
 SYSTEM_PROMPT = "Dies ist ein Gespräch zwischen User und Chatbot, einem freundlichen Chatbot der bei der allen Fragen hilft."
 HISTORY_MSG_N = 0
@@ -44,7 +44,7 @@ def start_server(model_name: str, port: int, embedding: bool = False, threads: i
     """
 
     command = [
-        "llamafile-0.8.12.exe",
+        "llamafile-0.8.13.exe",
         "--server",
         "--model", model_name,
         "--port", str(port),
