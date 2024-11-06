@@ -1,7 +1,6 @@
+# This Script is used to run the chatbot in the console. It uses the LLM and RAG model to generate responses to user queries.
 
-#This Script is used to run the chatbot in the console. It uses the LLM and RAG model to generate responses to user queries.
-
-#LLM Outputs are green, hidden prompts are red, souces are blue
+# LLM Outputs are green, hidden prompts are red, souces are blue
 
 import time
 import pickle
@@ -24,9 +23,18 @@ EMBEDDING_NAME = "models\\qwen2-1_5b-instruct-q4_k_m.gguf"
 EMBEDDING_PORT = 1111
 SYSTEM_PROMPT = "Dies ist ein Gespräch zwischen User und Chatbot, einem freundlichen Chatbot der bei der allen Fragen hilft."
 HISTORY_MSG_N = 0
-STOP_WORDS = ["Chatbot:","User:","</s>","<|eot_id|>"]
+STOP_WORDS = ["Chatbot:", "User:", "</s>", "<|eot_id|>"]
 
-def start_server(model_name: str, port: int, embedding: bool = False, threads: int = os.cpu_count()-2, verbose: bool = False, browser: bool = False, output: bool = False) -> None:
+
+def start_server(
+    model_name: str,
+    port: int,
+    embedding: bool = False,
+    threads: int = os.cpu_count() - 2,
+    verbose: bool = False,
+    browser: bool = False,
+    output: bool = False,
+) -> None:
     """
     Starts the LlamaFile server with the specified model and configuration.
 
@@ -46,9 +54,12 @@ def start_server(model_name: str, port: int, embedding: bool = False, threads: i
     command = [
         "llamafile-0.8.13.exe",
         "--server",
-        "--model", model_name,
-        "--port", str(port),
-        "--threads", str(threads),
+        "--model",
+        model_name,
+        "--port",
+        str(port),
+        "--threads",
+        str(threads),
     ]
 
     if embedding:
@@ -67,8 +78,9 @@ def start_server(model_name: str, port: int, embedding: bool = False, threads: i
     if output:
         subprocess.Popen(command)
     else:
-        with open(os.devnull, 'w') as devnull:
+        with open(os.devnull, "w") as devnull:
             subprocess.Popen(command, stdout=devnull, stderr=devnull)
+
 
 # Initialize the LLM
 def initialize_llm():
@@ -94,42 +106,47 @@ def initialize_llm():
         mirostat_eta=0.1,
     )
 
+
 # Initialize RAG
 def initialize_rag():
     start_server(model_name=EMBEDDING_NAME, port=EMBEDDING_PORT, embedding=True)
     embedder = LlamafileEmbeddings(base_url=f"http://localhost:{EMBEDDING_PORT}")
 
-    with open('Index/faiss_index.pkl', 'rb') as f:
+    with open("Index/faiss_index.pkl", "rb") as f:
         all_chunks, vectors_np, index = pickle.load(f)
     return embedder, all_chunks, vectors_np, index
 
+
 # Query Index
-def query_index(embedder, index, all_chunks, query_text, n_return, RAG_THRESH = RAG_THRESH):
+def query_index(
+    embedder, index, all_chunks, query_text, n_return, RAG_THRESH=RAG_THRESH
+):
     # Embed the query text
     query_vector = embedder.embed_query(query_text)
-    query_vector = np.array([query_vector]).astype('float32')
+    query_vector = np.array([query_vector]).astype("float32")
     faiss.normalize_L2(query_vector)
 
     # Search the index for the closest matches
     D, I = index.search(query_vector, index.ntotal)  # Search entire index
-    
+
     cosine_distances = 1 - D
     results = [(all_chunks[I[0][i]], cosine_distances[0][i]) for i in range(len(I[0]))]
-    
+
     # Sort results by cosine distance (ascending order)
     results = sorted(results, key=lambda x: x[1])
-    
+
     # Filter based on RAG_THRESH and return the top n_return results
     filtered_results = [
-        (file_path, text_chunk, dist) 
-        for (file_path, text_chunk), dist in results 
+        (file_path, text_chunk, dist)
+        for (file_path, text_chunk), dist in results
         if dist < RAG_THRESH
     ]
-    
+
     return filtered_results[:n_return]
 
+
 # Generate Prompt
-def generate_prompt(context, conversation,query):
+def generate_prompt(context, conversation, query):
     return f"""
 {SYSTEM_PROMPT}
 {context}
@@ -139,15 +156,17 @@ Chatbot: Gerne, wie kann ich dir helfen?
 User: {query}
 Chatbot: """
 
+
 # Stream Response
-def stream_response(llm, prompt,output = True):
+def stream_response(llm, prompt, output=True):
     answer = ""
     for chunk in llm.stream(prompt, stop=STOP_WORDS):
-        #check if junk is "Chatbot:" then delete it
+        # check if junk is "Chatbot:" then delete it
         if output:
             print(f"\033[92m{chunk}\033[0m", end="")
         answer += chunk
     return answer
+
 
 # Function to generate a query based on the chat history
 def generate_query_from_history(context, llm, query):
@@ -168,11 +187,11 @@ def generate_query_from_history(context, llm, query):
     """
     print(f"\033[33m\nPrompt: {prompt}\033[0m")
 
-    generated_query = stream_response(llm, prompt,output = False)
-
+    generated_query = stream_response(llm, prompt, output=False)
 
     print(f"\033[33m\nGenerated Query: {generated_query}\033[0m")
     return generated_query.strip()
+
 
 # Main Chat Loop
 def main_chat_loop():
@@ -199,16 +218,20 @@ def main_chat_loop():
             generated_query = query
 
         if len(chat_history) > 2 * HISTORY_MSG_N:
-            chat_history = chat_history[-2 * HISTORY_MSG_N:]
+            chat_history = chat_history[-2 * HISTORY_MSG_N :]
 
         context = ""
         file_paths = []  # Initialize list to store file paths
         if ENABLE_RAG:
-            results = query_index(embedder, index, all_chunks, generated_query, RAG_N_RETURN)
+            results = query_index(
+                embedder, index, all_chunks, generated_query, RAG_N_RETURN
+            )
             if len(results) > 0:
                 context = "\n\n".join([text for file_path, text, _ in results])
                 context = f"\nBenutze folgende Informationen, um auf die Benutzeranfrage zu antworten: \n\n###\n{context}\n###\n\n"
-                file_paths = list(set(file_path for file_path, _, _ in results))  # Extract and deduplicate file paths
+                file_paths = list(
+                    set(file_path for file_path, _, _ in results)
+                )  # Extract and deduplicate file paths
             else:
                 context = "Es wurden keine Informationen gefunden, um auf die Benutzeranfrage zu antworten. Teile dies dem Benutzer mit und bitte ihn, die Frage zu präzisieren. ANTWORTE NICHT AUF DIE FRAGE!"
 
@@ -225,7 +248,10 @@ def main_chat_loop():
 
         time_taken = time.time() - start_time
         characters_per_second = len(answer) / time_taken
-        print(f"\033[33m\n\nCharacters per second: {characters_per_second} Time taken: {time_taken}\033[0m")
+        print(
+            f"\033[33m\n\nCharacters per second: {characters_per_second} Time taken: {time_taken}\033[0m"
+        )
+
 
 if __name__ == "__main__":
     main_chat_loop()
